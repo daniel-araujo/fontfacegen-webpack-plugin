@@ -102,7 +102,11 @@ The constructor takes an object as its first argument:
 
 ## Contributing
 
-Did you find a bug? Would you like to suggest a feature? Are you having trouble
-getting the plugin to work? Feel free to create an issue on github:
+The easiest way to contribute is by starring this project on GitHub!
+
+https://github.com/daniel-araujo/fontfacegen-webpack-plugin
+
+If you've found a bug, would like to suggest a feature or need some help, feel
+free to create an issue on GitHub:
 
 https://github.com/daniel-araujo/fontfacegen-webpack-plugin/issues
