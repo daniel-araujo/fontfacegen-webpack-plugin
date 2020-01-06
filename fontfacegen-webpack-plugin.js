@@ -83,9 +83,9 @@ class CompileResultCache {
 const name = Symbol('name');
 const tasks = Symbol('tasks');
 
-module.exports = class FontfacegenPlugin {
+module.exports = class FontfacegenWebpackPlugin {
   constructor(options = {}) {
-    this[name] = 'fontfacegenPlugin';
+    this[name] = 'fontfacegenWebpackPlugin';
 
     this[tasks] = (options.tasks !== undefined ? options.tasks : [])
       .map((task) => {
