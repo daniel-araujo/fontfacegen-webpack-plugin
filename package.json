@@ -1,6 +1,6 @@
 {
   "name": "fontfacegen-webpack-plugin",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A plugin for webpack that takes a ttf or otf font file and generates eot, ttf, svg, woff and woff2 files for the web.",
   "main": "fontfacegen-webpack-plugin.js",
   "types": "fontfacegen-webpack-plugin.d.ts",
