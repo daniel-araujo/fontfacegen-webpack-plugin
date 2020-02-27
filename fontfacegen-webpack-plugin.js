@@ -82,6 +82,7 @@ class CompileResultCache {
 // Symbols for private fields.
 const name = Symbol('name');
 const tasks = Symbol('tasks');
+const running = Symbol('running');
 
 module.exports = class FontfacegenWebpackPlugin {
   constructor(options = {}) {
@@ -110,28 +111,25 @@ module.exports = class FontfacegenWebpackPlugin {
         return task;
       });
 
-    // Enables experimental features.
-    this.experimentalDst = false;
-
     // Keeps track of the promise that runs the tasks.
-    this.running = null;
+    this[running] = null;
   }
 
   apply(compiler) {
     compiler.hooks.thisCompilation.tap(this[name], (compilation) => {
       compilation.hooks.additionalAssets.tapPromise(this[name], async () => {
-        if (this.running === null) {
+        if (this[running] === null) {
           // This means no tasks are running.
-          this.running = this.runTasks(compilation);
+          this[running] = this.runTasks(compilation);
         } else {
           // Wait for the existing tasks to finish. Note that we bail if the
           // existing tasks fails. I'd rather have the user see the error
           // instead of attempting to compile again, risking an infinite loop.
-          this.running.then(() => this.runTasks(compilation));
+          this[running].then(() => this.runTasks(compilation));
         }
 
-        await this.running
-          .finally(() => this.running = null);
+        await this[running]
+          .finally(() => this[running] = null);
       });
     });
   }
