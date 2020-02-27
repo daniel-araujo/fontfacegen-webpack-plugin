@@ -8,4 +8,4 @@ declare class FontfacegenWebpackPlugin implements Plugin {
   constructor(options: FontfacegenWebpackPluginOptions);
 }
 
-export default FontfacegenWebpackPlugin;
+export = FontfacegenWebpackPlugin;
