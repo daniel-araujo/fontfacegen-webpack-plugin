@@ -120,16 +120,19 @@ module.exports = class FontfacegenWebpackPlugin {
       compilation.hooks.additionalAssets.tapPromise(this[name], async () => {
         if (this[running] === null) {
           // This means no tasks are running.
-          this[running] = this.runTasks(compilation);
+          this[running] = this.runTasks(compilation)
+            .finally(() => this[running] = null);
         } else {
           // Wait for the existing tasks to finish. Note that we bail if the
-          // existing tasks fails. I'd rather have the user see the error
-          // instead of attempting to compile again, risking an infinite loop.
-          this[running].then(() => this.runTasks(compilation));
+          // existing tasks fail. I'd rather have the user see the error instead
+          // of risking to cause an infinite loop for attempting to compile over
+          // the failed one.
+          this[running] = this[running].then(
+            () => this[running] = this.runTasks(compilation)
+              .finally(() => this[running] = null));
         }
 
-        await this[running]
-          .finally(() => this[running] = null);
+        await this[running];
       });
     });
   }
