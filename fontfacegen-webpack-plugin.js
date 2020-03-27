@@ -178,18 +178,6 @@ module.exports = class FontfacegenWebpackPlugin {
     let extension = path.extname(src);
     let fontname = path.basename(src, extension);
 
-    // This is the path to a generated file.
-    let generatedFile = path.join(dst, fontname) + '.ttf';
-
-    let stat = await fs.promises.stat(src);
-    let timestamp = stat.mtime;
-    let generatedTimestamp = new Date(0, 0, 0, 0, 0, 0, 0);
-
-    if (fs.existsSync(generatedFile)) {
-      let generatedStat = await fs.promises.stat(generatedFile);
-      generatedTimestamp.setTime(generatedStat.mtime);
-    }
-
     const files = [
       fontname + '.eot',
       fontname + '.ttf',
@@ -198,10 +186,7 @@ module.exports = class FontfacegenWebpackPlugin {
       fontname + '.woff2',
     ];
 
-    if (timestamp.getTime() < generatedTimestamp.getTime()) {
-      // If the modification date of the source file is less than that of the
-      // generated file then there is a very good chance that it was not
-      // changed therefore we can reuse the generated assets.
+    if (await this.reuse(src, dst, files)) {
       return new CompileResultCache(files);
     }
 
@@ -212,7 +197,42 @@ module.exports = class FontfacegenWebpackPlugin {
     });
 
     return new CompileResultSuccess(files);
-  };
+  }
+
+  /**
+   * Determines whether the previously generated files are still valid and can
+   * be reused.
+   */
+  async reuse(src, dst, files) {
+    let { mtime: sourceTimestamp } = await fs.promises.stat(src);
+
+    // The null value means that no compilation has occurred before. A Date
+    // object holds the time of the last compilation.
+    let lastCompilationTimestamp = null;
+
+    for (let file of files) {
+      // This is the path to a generated file.
+      let generatedFile = path.join(dst, file);
+
+      if (!fs.existsSync(generatedFile)) {
+        // A file is missing. We can't reuse existing assets.
+        return false;
+      }
+
+      let { mtime: modificationTime } = await fs.promises.stat(generatedFile);
+
+      if (lastCompilationTimestamp === null
+          || lastCompilationTimestamp.getTime() > modificationTime.getTime()) {
+        // Oldest compilation time.
+        lastCompilationTimestamp = modificationTime;
+      }
+    }
+
+    // If the modification date of the source file is less than that of the
+    // compiled files then there is a very good chance that it was not changed
+    // therefore we can reuse the existing assets.
+    return sourceTimestamp.getTime() < lastCompilationTimestamp.getTime();
+  }
 
   /*
    * Generates a list of absolute file paths to the font files referenced in the
