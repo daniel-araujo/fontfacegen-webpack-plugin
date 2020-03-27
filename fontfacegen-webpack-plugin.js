@@ -145,10 +145,11 @@ module.exports = class FontfacegenWebpackPlugin {
       const fontFiles = await this.collectFonts(task);
 
       for (let font of fontFiles) {
+        console.log(`Generating fonts for "${path.basename(font)}"...`);
         let result = await this.compile(font, compilation.outputOptions.path);
 
         if (result instanceof CompileResultSuccess) {
-          console.log(`Generated font files for "${path.basename(font)}".`);
+          console.log(`Generated fonts for "${path.basename(font)}" successfully.`);
         } else if (result instanceof CompileResultCache) {
           console.log(`Font "${path.basename(font)}" is up to date.`);
         }
