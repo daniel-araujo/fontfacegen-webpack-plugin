@@ -82,7 +82,6 @@ class CompileResultCache {
 // Symbols for private fields.
 const name = Symbol('name');
 const tasks = Symbol('tasks');
-const running = Symbol('running');
 
 module.exports = class FontfacegenWebpackPlugin {
   constructor(options = {}) {
@@ -110,62 +109,78 @@ module.exports = class FontfacegenWebpackPlugin {
 
         return task;
       });
-
-    // Keeps track of the promise that runs the tasks.
-    this[running] = null;
   }
 
   apply(compiler) {
-    compiler.hooks.thisCompilation.tap(this[name], (compilation) => {
-      compilation.hooks.additionalAssets.tapPromise(this[name], async () => {
-        if (this[running] === null) {
-          // This means no tasks are running.
-          this[running] = this.runTasks(compilation)
-            .finally(() => this[running] = null);
-        } else {
-          // Wait for the existing tasks to finish. Note that we bail if the
-          // existing tasks fail. I'd rather have the user see the error instead
-          // of risking to cause an infinite loop for attempting to compile over
-          // the failed one.
-          this[running] = this[running].then(
-            () => this[running] = this.runTasks(compilation)
-              .finally(() => this[running] = null));
-        }
+    // This state lingers around here because it's not possible to tap into
+    // a hook just once or to even deregister from a hook. It will be
+    // initialized during beforeCompile and deinitialized in afterCompile.
+    let compilationTasks;
 
-        await this[running];
-      });
+    compiler.hooks.beforeCompile.tapPromise(this[name], async (compilation) => {
+      // State initialization.
+      compilationTasks = await Promise.all(this[tasks].map(async (task) => {
+        return {
+          sourceFiles: await this.collectFonts(task),
+          results: [],
+        };
+      }));
     });
-  }
 
-  /*
-   * Runs tasks for the current compilation.
-   */
-  async runTasks(compilation) {
-    for (let task of this[tasks]) {
-      const fontFiles = await this.collectFonts(task);
+    compiler.hooks.make.tapPromise(this[name], async (compilation) => {
+      for (let ct of compilationTasks) {
+        for (let sourceFile of ct.sourceFiles) {
+          let friendlyName = path.basename(sourceFile);
 
-      for (let font of fontFiles) {
-        console.log(`Generating fonts for "${path.basename(font)}"...`);
-        let result = await this.compile(font, compilation.outputOptions.path);
+          try {
+            let result = await this.compile(sourceFile, compilation.outputOptions.path);
 
-        if (result instanceof CompileResultSuccess) {
-          console.log(`Generated fonts for "${path.basename(font)}" successfully.`);
-        } else if (result instanceof CompileResultCache) {
-          console.log(`Font "${path.basename(font)}" is up to date.`);
+            if (result instanceof CompileResultSuccess) {
+              console.log(`Generated fonts for "${friendlyName}" successfully.`);
+            } else if (result instanceof CompileResultCache) {
+              console.log(`Fonts for "${friendlyName}" are up to date.`);
+            }
+
+            ct.results.push(result);
+          } catch (e) {
+            console.error(`Failed to generate "${friendlyName}" fonts`, e);
+            // Move on to the next file.
+          }
         }
-
-        for (let file of result.files) {
-          // Paths to the generated font files will be used in the code so we
-          // need to remove those from the dependencies list otherwise webpack
-          // watch will go in an endless loop when the fonts get compiled.
-          compilation.fileDependencies.delete(path.join(compilation.outputOptions.path, file));
-        }
-
-        // We need to turn the source files into dependencies because they will
-        // not be referenced in the code.
-        compilation.fileDependencies.add(font);
       }
-    }
+    });
+
+    compiler.hooks.afterCompile.tapPromise(this[name], async (compilation) => {
+      for (let ct of compilationTasks) {
+        for (let result of ct.results) {
+          try {
+            for (let file of result.files) {
+              let fullPath = path.join(compilation.outputOptions.path, file);
+        
+              // Paths to the generated font files may be used in the code so we
+              // need to remove those from the dependencies list otherwise webpack
+              // watch will go in a loop when the fonts get compiled.
+              if (compilation.fileDependencies.has(fullPath)) {
+                compilation.fileDependencies.delete(fullPath);
+              }
+            }
+        
+            // We need to manually register the source files as dependencies
+            // because they might not be referenced in the code. This is what
+            // makes the watch command work.
+            for (let sourceFile of ct.sourceFiles) {
+              compilation.fileDependencies.add(sourceFile);
+            }
+          } catch (e) {
+            console.error(e);
+            // Move on to the next result.
+          }
+        }
+      }
+
+      // State deinitialization.
+      compilationTasks = undefined;
+    });
   }
 
   /*
