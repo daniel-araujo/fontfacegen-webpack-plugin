@@ -80,14 +80,15 @@ class CompileResultCache {
 }
 
 // Symbols for private fields.
-const name = Symbol('name');
-const tasks = Symbol('tasks');
+const NAME = Symbol('NAME');
+const TASKS = Symbol('TASKS');
+const LAST_RESULTS = Symbol('LAST_RESULTS');
 
 module.exports = class FontfacegenWebpackPlugin {
   constructor(options = {}) {
-    this[name] = 'fontfacegenWebpackPlugin';
+    this[NAME] = 'fontfacegenWebpackPlugin';
 
-    this[tasks] = (options.tasks !== undefined ? options.tasks : [])
+    this[TASKS] = (options.tasks !== undefined ? options.tasks : [])
       .map((task) => {
         if (typeof task === 'string') {
           // If task is a string then the user has only provided the source.
@@ -109,6 +110,9 @@ module.exports = class FontfacegenWebpackPlugin {
 
         return task;
       });
+
+    // Tracks the results of the last compilation.
+    this[LAST_RESULTS] = [];
   }
 
   apply(compiler) {
@@ -117,9 +121,9 @@ module.exports = class FontfacegenWebpackPlugin {
     // initialized during beforeCompile and deinitialized in afterCompile.
     let compilationTasks;
 
-    compiler.hooks.beforeCompile.tapPromise(this[name], async (compilation) => {
+    compiler.hooks.beforeCompile.tapPromise(this[NAME], async (compilation) => {
       // State initialization.
-      compilationTasks = await Promise.all(this[tasks].map(async (task) => {
+      compilationTasks = await Promise.all(this[TASKS].map(async (task) => {
         return {
           sourceFiles: await this.collectFonts(task),
           results: [],
@@ -127,7 +131,7 @@ module.exports = class FontfacegenWebpackPlugin {
       }));
     });
 
-    compiler.hooks.make.tapPromise(this[name], async (compilation) => {
+    compiler.hooks.make.tapPromise(this[NAME], async (compilation) => {
       for (let ct of compilationTasks) {
         for (let sourceFile of ct.sourceFiles) {
           let friendlyName = path.basename(sourceFile);
@@ -150,7 +154,10 @@ module.exports = class FontfacegenWebpackPlugin {
       }
     });
 
-    compiler.hooks.afterCompile.tapPromise(this[name], async (compilation) => {
+    compiler.hooks.afterCompile.tapPromise(this[NAME], async (compilation) => {
+      // Discards previous results.
+      this[LAST_RESULTS].length = 0;
+
       for (let ct of compilationTasks) {
         for (let result of ct.results) {
           try {
@@ -163,6 +170,8 @@ module.exports = class FontfacegenWebpackPlugin {
               if (compilation.fileDependencies.has(fullPath)) {
                 compilation.fileDependencies.delete(fullPath);
               }
+
+              this[LAST_RESULTS].push(file);
             }
         
             // We need to manually register the source files as dependencies
@@ -279,5 +288,14 @@ module.exports = class FontfacegenWebpackPlugin {
     }
 
     return fontFiles;
+  }
+
+  /**
+   * A list of files that were generated in the last compilation. Files are
+   * relative to the output path.
+   * @returns {string[]}
+   */
+  lastResults() {
+    return this[LAST_RESULTS].concat();
   }
 };
