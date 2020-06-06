@@ -1,5 +1,6 @@
 const assert = require('assert');
 const path = require('path');
+const fs = require('fs');
 
 const webpack = require('webpack');
 const fse = require('fs-extra');
@@ -31,6 +32,20 @@ function getConfig(options = {}) {
 async function createEntryStub() {
   await fse.ensureDir(path.join(__dirname, 'fontfacegen-webpack-plugin.test'));
   await fse.promises.writeFile(path.join(__dirname, 'fontfacegen-webpack-plugin.test/entry.js'), '', 'utf8');
+}
+
+/**
+ * Verifies if results actually exist on the file system.
+ * @param {FontfacegenWebpackPlugin} plugin
+ */
+function assertResultsExist(plugin) {
+  const outputPath = path.join(__dirname, 'fontfacegen-webpack-plugin.test/build');
+
+  for (let file of plugin.lastResults()) {
+    let fullPath = path.join(outputPath, file);
+
+    assert(fs.existsSync(fullPath));
+  }
 }
 
 beforeEach(async () => {
@@ -65,6 +80,7 @@ it('converts ttf file', async () => {
     'Karla-Regular.woff',
     'Karla-Regular.woff2'
   ]);
+  assertResultsExist(plugin);
 });
 
 it('converts two tasks', async () => {
@@ -91,6 +107,7 @@ it('converts two tasks', async () => {
     'Karla-Bold.woff',
     'Karla-Bold.woff2'
   ]);
+  assertResultsExist(plugin);
 });
 
 it('array of tasks is equivalent to an array of objects with just the src property', async () => {
@@ -108,6 +125,7 @@ it('array of tasks is equivalent to an array of objects with just the src proper
       'Karla-Regular.woff',
       'Karla-Regular.woff2'
     ]);
+    assertResultsExist(plugin);
   }
 
   {
@@ -130,6 +148,7 @@ it('array of tasks is equivalent to an array of objects with just the src proper
       'Karla-Bold.woff',
       'Karla-Bold.woff2'
     ]);
+    assertResultsExist(plugin);
   }
 });
 
@@ -162,4 +181,5 @@ it('converts every ttf file inside directory', async () => {
     'Karla-Regular.woff',
     'Karla-Regular.woff2'
   ]);
+  assertResultsExist(plugin);
 });
