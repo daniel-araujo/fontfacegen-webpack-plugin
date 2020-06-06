@@ -139,6 +139,37 @@ it('converts font file if source modification date is newer than any generated f
   }
 });
 
+it('a task can have multiple sources', async () => {
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: [
+      {
+        src: [
+          path.join(__dirname, 'karla', 'Karla-Regular.ttf'),
+          path.join(__dirname, 'karla', 'Karla-Bold.ttf')
+        ]
+      }
+    ]
+  });
+
+  await run({
+    plugins: [plugin]
+  });
+
+  assert.deepStrictEqual(plugin.lastResults(), [
+    'Karla-Regular.eot',
+    'Karla-Regular.ttf',
+    'Karla-Regular.svg',
+    'Karla-Regular.woff',
+    'Karla-Regular.woff2',
+    'Karla-Bold.eot',
+    'Karla-Bold.ttf',
+    'Karla-Bold.svg',
+    'Karla-Bold.woff',
+    'Karla-Bold.woff2'
+  ]);
+  assertResultsExist(plugin);
+});
+
 it('converts two tasks', async () => {
   let plugin = new FontfacegenWebpackPlugin({
     tasks: [
