@@ -132,6 +132,9 @@ module.exports = class FontfacegenWebpackPlugin {
     });
 
     compiler.hooks.make.tapPromise(this[NAME], async (compilation) => {
+      // Discards previous results.
+      this[LAST_RESULTS].length = 0;
+
       for (let ct of compilationTasks) {
         for (let sourceFile of ct.sourceFiles) {
           let friendlyName = path.basename(sourceFile);
@@ -141,6 +144,10 @@ module.exports = class FontfacegenWebpackPlugin {
 
             if (result instanceof CompileResultSuccess) {
               console.log(`Generated fonts for "${friendlyName}" successfully.`);
+
+              for (let file of result.files) {
+                this[LAST_RESULTS].push(file);
+              }
             } else if (result instanceof CompileResultCache) {
               console.log(`Fonts for "${friendlyName}" are up to date.`);
             }
@@ -155,9 +162,6 @@ module.exports = class FontfacegenWebpackPlugin {
     });
 
     compiler.hooks.afterCompile.tapPromise(this[NAME], async (compilation) => {
-      // Discards previous results.
-      this[LAST_RESULTS].length = 0;
-
       for (let ct of compilationTasks) {
         for (let result of ct.results) {
           try {
@@ -170,8 +174,6 @@ module.exports = class FontfacegenWebpackPlugin {
               if (compilation.fileDependencies.has(fullPath)) {
                 compilation.fileDependencies.delete(fullPath);
               }
-
-              this[LAST_RESULTS].push(file);
             }
         
             // We need to manually register the source files as dependencies

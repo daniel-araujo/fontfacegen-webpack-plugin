@@ -7,6 +7,8 @@ const fse = require('fs-extra');
 
 const FontfacegenWebpackPlugin = require('..');
 
+const outputPath = path.join(__dirname, 'fontfacegen-webpack-plugin.test/build');
+
 async function run(options) {
   await createEntryStub();
   const compiler = webpack(getConfig(options));
@@ -23,7 +25,7 @@ function getConfig(options = {}) {
     mode: 'development',
     entry: path.join(__dirname, 'fontfacegen-webpack-plugin.test/entry.js'),
     output: {
-      path: path.join(__dirname, 'fontfacegen-webpack-plugin.test/build'),
+      path: outputPath,
     },
     ...options
   };
@@ -39,8 +41,6 @@ async function createEntryStub() {
  * @param {FontfacegenWebpackPlugin} plugin
  */
 function assertResultsExist(plugin) {
-  const outputPath = path.join(__dirname, 'fontfacegen-webpack-plugin.test/build');
-
   for (let file of plugin.lastResults()) {
     let fullPath = path.join(outputPath, file);
 
@@ -81,6 +81,62 @@ it('converts ttf file', async () => {
     'Karla-Regular.woff2'
   ]);
   assertResultsExist(plugin);
+});
+
+it('does not convert font file if it had already been converted', async () => {
+  let plugin = new FontfacegenWebpackPlugin({ tasks: [path.join(__dirname, 'karla', 'Karla-Regular.ttf')] });
+
+  await run({
+    plugins: [plugin]
+  });
+
+  // Second run.
+  await run({
+    plugins: [plugin]
+  });
+
+  assert.deepStrictEqual(plugin.lastResults(), []);
+});
+
+it('converts font file if source modification date is newer than any generated file', async () => {
+  let sourceFile = path.join(__dirname, 'karla', 'Karla-Regular.ttf');
+  let plugin = new FontfacegenWebpackPlugin({ tasks: [sourceFile] });
+
+  await run({
+    plugins: [plugin]
+  });
+
+  let files = plugin.lastResults();
+
+  for (let file of files) {
+    let now = new Date();
+
+    for (let file of files) {
+      // The other files.
+      let fullPath = path.join(outputPath, file);
+      fs.utimesSync(fullPath, new Date(now.getTime() + 1), new Date(now.getTime() + 1));
+    }
+
+    // Current file.
+    let fullPath = path.join(outputPath, file);
+    fs.utimesSync(fullPath, new Date(now.getTime() - 1), new Date(now.getTime() - 1));
+
+    // Source file will be newer than the current file but older than the other
+    // files.
+    fs.utimesSync(sourceFile, now, now);
+
+    await run({
+      plugins: [plugin]
+    });
+
+    assert.deepStrictEqual(plugin.lastResults(), [
+      'Karla-Regular.eot',
+      'Karla-Regular.ttf',
+      'Karla-Regular.svg',
+      'Karla-Regular.woff',
+      'Karla-Regular.woff2',
+    ]);
+  }
 });
 
 it('converts two tasks', async () => {
