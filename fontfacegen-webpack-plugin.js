@@ -98,7 +98,7 @@ module.exports = class FontfacegenWebpackPlugin {
           task = {
             src: task
           };
-        } else if (task instanceof Array) {
+        } else if (typeof task === 'object') {
           // We need to make sure this is a copy.
           task = Object.assign({}, task);
         }
@@ -106,7 +106,7 @@ module.exports = class FontfacegenWebpackPlugin {
         if (typeof task.src === 'string') {
           // The user only provided a single source.
           task.src = [task.src];
-        } else if (task instanceof Array) {
+        } else if (task.src instanceof Array) {
           // We need to make sure this is a copy.
           task.src = task.src.concat();
         }

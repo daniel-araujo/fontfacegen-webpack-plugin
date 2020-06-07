@@ -170,6 +170,82 @@ it('a task can have multiple sources', async () => {
   assertResultsExist(plugin);
 });
 
+it('tasks array is copied', async () => {
+  let tasks = [path.join(__dirname, 'karla', 'Karla-Regular.ttf')];
+
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: tasks
+  });
+
+  tasks.push(path.join(__dirname, 'karla', 'Karla-Bold.ttf'));
+
+  await run({
+    plugins: [plugin]
+  });
+
+  assert.deepStrictEqual(plugin.lastResults(), [
+    'Karla-Regular.eot',
+    'Karla-Regular.ttf',
+    'Karla-Regular.svg',
+    'Karla-Regular.woff',
+    'Karla-Regular.woff2',
+  ]);
+  assertResultsExist(plugin);
+});
+
+it('task object is copied', async () => {
+  let task = {
+    src: [path.join(__dirname, 'karla', 'Karla-Regular.ttf')]
+  };
+  let tasks = [task];
+
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: tasks
+  });
+
+  task.src = [path.join(__dirname, 'karla', 'Karla-Bold.ttf')];
+
+  await run({
+    plugins: [plugin]
+  });
+
+  assert.deepStrictEqual(plugin.lastResults(), [
+    'Karla-Regular.eot',
+    'Karla-Regular.ttf',
+    'Karla-Regular.svg',
+    'Karla-Regular.woff',
+    'Karla-Regular.woff2',
+  ]);
+  assertResultsExist(plugin);
+});
+
+it('tasks src array is copied', async () => {
+  let tasks = [
+    {
+      src: [path.join(__dirname, 'karla', 'Karla-Regular.ttf')]
+    }
+  ];
+
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: tasks
+  });
+
+  tasks[0].src.push(path.join(__dirname, 'karla', 'Karla-Bold.ttf'));
+
+  await run({
+    plugins: [plugin]
+  });
+
+  assert.deepStrictEqual(plugin.lastResults(), [
+    'Karla-Regular.eot',
+    'Karla-Regular.ttf',
+    'Karla-Regular.svg',
+    'Karla-Regular.woff',
+    'Karla-Regular.woff2',
+  ]);
+  assertResultsExist(plugin);
+});
+
 it('converts two tasks', async () => {
   let plugin = new FontfacegenWebpackPlugin({
     tasks: [
