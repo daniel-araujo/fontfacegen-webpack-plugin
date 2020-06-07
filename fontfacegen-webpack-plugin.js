@@ -83,6 +83,9 @@ class CompileResultCache {
 const NAME = Symbol('NAME');
 const TASKS = Symbol('TASKS');
 const LAST_RESULTS = Symbol('LAST_RESULTS');
+const COMPILE = Symbol('COMPILE');
+const REUSE = Symbol('REUSE');
+const COLLECT_FONTS = Symbol('COLLECT_FONTS');
 
 module.exports = class FontfacegenWebpackPlugin {
   constructor(options = {}) {
@@ -125,7 +128,7 @@ module.exports = class FontfacegenWebpackPlugin {
       // State initialization.
       compilationTasks = await Promise.all(this[TASKS].map(async (task) => {
         return {
-          sourceFiles: await this.collectFonts(task),
+          sourceFiles: await this[COLLECT_FONTS](task),
           results: [],
         };
       }));
@@ -140,7 +143,7 @@ module.exports = class FontfacegenWebpackPlugin {
           let friendlyName = path.basename(sourceFile);
 
           try {
-            let result = await this.compile(sourceFile, compilation.outputOptions.path);
+            let result = await this[COMPILE](sourceFile, compilation.outputOptions.path);
 
             if (result instanceof CompileResultSuccess) {
               console.log(`Generated fonts for "${friendlyName}" successfully.`);
@@ -204,7 +207,7 @@ module.exports = class FontfacegenWebpackPlugin {
    * reused. The object provides a list of the names of the font files that were
    * generated in the given directory.
    */
-  async compile(src, dst) {
+  async [COMPILE](src, dst) {
     let extension = path.extname(src);
     let fontname = path.basename(src, extension);
 
@@ -216,7 +219,7 @@ module.exports = class FontfacegenWebpackPlugin {
       fontname + '.woff2',
     ];
 
-    if (await this.reuse(src, dst, files)) {
+    if (await this[REUSE](src, dst, files)) {
       return new CompileResultCache(files);
     }
 
@@ -233,7 +236,7 @@ module.exports = class FontfacegenWebpackPlugin {
    * Determines whether the previously generated files are still valid and can
    * be reused.
    */
-  async reuse(src, dst, files) {
+  async [REUSE](src, dst, files) {
     let { mtime: sourceTimestamp } = await fs.promises.stat(src);
 
     // The null value means that no compilation has occurred before. A Date
@@ -268,7 +271,7 @@ module.exports = class FontfacegenWebpackPlugin {
    * Generates a list of absolute file paths to the font files referenced in the
    * source list of a task.
    */
-  async collectFonts(task) {
+  async [COLLECT_FONTS](task) {
     const fontFiles = [];
 
     for (let src of task.src) {
