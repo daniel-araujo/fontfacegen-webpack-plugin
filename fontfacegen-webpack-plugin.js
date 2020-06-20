@@ -111,6 +111,12 @@ module.exports = class FontfacegenWebpackPlugin {
           task.src = task.src.concat();
         }
 
+        if (!(typeof task.subset === 'string' || task.subset instanceof Array)) {
+          if (options.subset !== undefined) {
+            task.subset = options.subset;
+          }
+        }
+
         return task;
       });
 
@@ -129,6 +135,7 @@ module.exports = class FontfacegenWebpackPlugin {
       compilationTasks = await Promise.all(this[TASKS].map(async (task) => {
         return {
           sourceFiles: await this[COLLECT_FONTS](task),
+          subset: task.subset,
           results: [],
         };
       }));
@@ -143,7 +150,7 @@ module.exports = class FontfacegenWebpackPlugin {
           let friendlyName = path.basename(sourceFile);
 
           try {
-            let result = await this[COMPILE](sourceFile, compilation.outputOptions.path);
+            let result = await this[COMPILE](sourceFile, compilation.outputOptions.path, ct.subset);
 
             if (result instanceof CompileResultSuccess) {
               console.log(`Generated fonts for "${friendlyName}" successfully.`);
@@ -199,15 +206,16 @@ module.exports = class FontfacegenWebpackPlugin {
 
   /*
    * Compiles a font into various other font formats. src is an absolute path to
-   * a file and dst is an absolute path to the directory where the font files
-   * will be created.
+   * a file, dst is an absolute path to the directory where the font files will
+   * be created and subset is a string of characters that should be included in
+   * the generated fonts.
    *
    * It returns an object on success. It will eithe be CompileResultSuccess if
    * the fonts were generated or CompileResultCache if the existing fonts were
    * reused. The object provides a list of the names of the font files that were
    * generated in the given directory.
    */
-  async [COMPILE](src, dst) {
+  async [COMPILE](src, dst, subset = undefined) {
     let extension = path.extname(src);
     let fontname = path.basename(src, extension);
 
@@ -226,6 +234,7 @@ module.exports = class FontfacegenWebpackPlugin {
     fontfacegen({
       source: src,
       dest: dst,
+      subset: subset,
       css: '/dev/null',
     });
 

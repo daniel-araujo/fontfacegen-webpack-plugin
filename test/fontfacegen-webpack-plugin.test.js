@@ -48,6 +48,16 @@ function assertResultsExist(plugin) {
   }
 }
 
+/**
+ * Counts glyphs in svg file.
+ * @param {string} svgFile
+ * @returns {number}
+ */
+async function countGlyphsInSvg(svgFile) {
+  let contents = await fs.promises.readFile(svgFile, 'utf8');
+  return (contents.match(/<glyph /g) || []).length;
+}
+
 beforeEach(async () => {
   await fse.remove(path.join(__dirname, 'fontfacegen-webpack-plugin.test'));
 });
@@ -345,4 +355,66 @@ it('converts every ttf file inside directory', async () => {
     'Karla-Regular.woff2'
   ]);
   assertResultsExist(plugin);
+});
+
+it('supports subset as string', async () => {
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: [path.join(__dirname, 'karla', 'Karla-Regular.ttf')],
+    subset: 'AB'
+  });
+
+  await run({
+    plugins: [plugin],
+  });
+
+  assert.strictEqual(await countGlyphsInSvg(path.join(outputPath, 'Karla-Regular.svg')), 3);
+});
+
+it('supports subset as array', async () => {
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: [path.join(__dirname, 'karla', 'Karla-Regular.ttf')],
+    subset: ['A', 'B']
+  });
+
+  await run({
+    plugins: [plugin],
+  });
+
+  assert.strictEqual(await countGlyphsInSvg(path.join(outputPath, 'Karla-Regular.svg')), 3);
+});
+
+it('supports subset as string per task', async () => {
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: [
+      {
+        src: path.join(__dirname, 'karla', 'Karla-Regular.ttf'),
+        subset: 'A'
+      }
+    ],
+    subset: 'AB'
+  });
+
+  await run({
+    plugins: [plugin],
+  });
+
+  assert.strictEqual(await countGlyphsInSvg(path.join(outputPath, 'Karla-Regular.svg')), 2);
+});
+
+it('supports subset as array per task', async () => {
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: [
+      {
+        src: path.join(__dirname, 'karla', 'Karla-Regular.ttf'),
+        subset: ['A']
+      }
+    ],
+    subset: 'AB'
+  });
+
+  await run({
+    plugins: [plugin],
+  });
+
+  assert.strictEqual(await countGlyphsInSvg(path.join(outputPath, 'Karla-Regular.svg')), 2);
 });
