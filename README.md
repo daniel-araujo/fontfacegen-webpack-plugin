@@ -98,6 +98,7 @@ The constructor takes an object as its first argument:
 | tasks    | Array of directories or file paths.                                                         |
 |          | - Directory: Files with the extension `.ttf` and `.otf` in the directory will be converted. |
 |          | - File. That single file will be converted.                                                 |
+| subset   | A string or array with the characters desired to be included inside the generated fonts.    |
 
 
 ## Contributing
