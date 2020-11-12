@@ -17,6 +17,7 @@ fontfile.ttf ---------------> fontfile.ttf
 ## Install
 
 ```
+npm install fontfacegen
 npm install fontfacegen-webpack-plugin
 ```
 
