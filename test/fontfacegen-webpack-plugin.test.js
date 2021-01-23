@@ -1,6 +1,7 @@
 const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
+const touch = require('touch');
 
 const webpack = require('webpack');
 const fse = require('fs-extra');
@@ -8,6 +9,22 @@ const fse = require('fs-extra');
 const FontfacegenWebpackPlugin = require('..');
 
 const outputPath = path.join(__dirname, 'fontfacegen-webpack-plugin.test/build');
+
+/**
+ * Asynchronously waits for a predicate to be satisfied.
+ * @param {Function} predicate - A function that must return a truthy value to
+ * stop the wait.
+ */
+async function until(predicate) {
+  return new Promise((resolve) => {
+    const interval = setInterval(() => {
+      if (predicate()) {
+        clearInterval(interval);
+        resolve();
+      }
+    }, 10);
+  });
+}
 
 async function run(options) {
   await createEntryStub();
@@ -18,6 +35,45 @@ async function run(options) {
       resolve(stats);
     });
   });
+}
+
+async function watch(options) {
+  await createEntryStub();
+
+  class TestWatch {
+    constructor() {
+      const compiler = webpack(getConfig(options));
+
+      // Array of promises that are waiting for a condition.
+      this.waits = [];
+
+      // Every time a successful compilation occurs, the stats object will be
+      // pushed to this array.
+      this.successfulCalls = [];
+
+      // Every time an error occurs, the error object will be pushed to this
+      // array.
+      this.errorCalls = [];
+
+      // Webpack's Watching instance.
+      this.watching = compiler.watch(
+        {
+          // Example [watchOptions](/configuration/watch/#watchoptions)
+          aggregateTimeout: 300,
+          poll: undefined
+        },
+        (err, stats) => {
+          if (err) {
+            this.errorCalls.push(err);
+          } else {
+            this.successfulCalls.push(stats);
+          }
+        }
+      );
+    }
+  }
+
+  return new TestWatch();
 }
 
 function getConfig(options = {}) {
@@ -417,4 +473,25 @@ it('supports subset as array per task', async () => {
   });
 
   assert.strictEqual(await countGlyphsInSvg(path.join(outputPath, 'Karla-Regular.svg')), 2);
+});
+
+it('watch: converts again if source file is updated', async () => {
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: [path.join(__dirname, 'karla', 'Karla-Regular.ttf')],
+    subset: 'A'
+  });
+
+  const testWatch = await watch({
+    plugins: [plugin],
+  });
+
+  try {
+    await until(() => testWatch.successfulCalls.length == 1);
+
+    touch.sync(path.join(__dirname, 'karla', 'Karla-Regular.ttf'));
+
+    await until(() => testWatch.successfulCalls.length == 2);
+  } finally {
+    testWatch.watching.close();
+  }
 });
