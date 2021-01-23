@@ -125,23 +125,15 @@ module.exports = class FontfacegenWebpackPlugin {
   }
 
   apply(compiler) {
-    // This state lingers around here because it's not possible to tap into
-    // a hook just once or to even deregister from a hook. It will be
-    // initialized during beforeCompile and deinitialized in afterCompile.
-    let compilationTasks;
-
-    compiler.hooks.beforeCompile.tapPromise(this[NAME], async (compilation) => {
-      // State initialization.
-      compilationTasks = await Promise.all(this[TASKS].map(async (task) => {
+    compiler.hooks.make.tapPromise(this[NAME], async (compilation) => {
+      let compilationTasks = await Promise.all(this[TASKS].map(async (task) => {
         return {
           sourceFiles: await this[COLLECT_FONTS](task),
           subset: task.subset,
           results: [],
         };
       }));
-    });
 
-    compiler.hooks.make.tapPromise(this[NAME], async (compilation) => {
       // Discards previous results.
       this[LAST_RESULTS].length = 0;
 
@@ -169,38 +161,6 @@ module.exports = class FontfacegenWebpackPlugin {
           }
         }
       }
-    });
-
-    compiler.hooks.afterCompile.tapPromise(this[NAME], async (compilation) => {
-      for (let ct of compilationTasks) {
-        for (let result of ct.results) {
-          try {
-            for (let file of result.files) {
-              let fullPath = path.join(compilation.outputOptions.path, file);
-        
-              // Paths to the generated font files may be used in the code so we
-              // need to remove those from the dependencies list otherwise webpack
-              // watch will go in a loop when the fonts get compiled.
-              if (compilation.fileDependencies.has(fullPath)) {
-                compilation.fileDependencies.delete(fullPath);
-              }
-            }
-        
-            // We need to manually register the source files as dependencies
-            // because they might not be referenced in the code. This is what
-            // makes the watch command work.
-            for (let sourceFile of ct.sourceFiles) {
-              compilation.fileDependencies.add(sourceFile);
-            }
-          } catch (e) {
-            console.error(e);
-            // Move on to the next result.
-          }
-        }
-      }
-
-      // State deinitialization.
-      compilationTasks = undefined;
     });
   }
 

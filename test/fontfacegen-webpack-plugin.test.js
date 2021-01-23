@@ -47,6 +47,25 @@ async function run(options) {
   });
 }
 
+async function runWithChildCompiler(options) {
+  await createEntryStub();
+  const compiler = webpack(getConfig(options));
+
+  return new Promise((resolve, reject) => {
+    compiler.hooks.make.tapPromise('runWithChildCompiler', async (compilation) => {
+      const childCompiler = compilation.createChildCompiler("ChildCompiler");
+      childCompiler.runAsChild((err, entries, childCompiletation) => {
+        if (err) return reject(err);
+      });
+    });
+
+    compiler.run((err, stats) => {
+      if (err) return reject(err);
+      resolve(stats);
+    });
+  });
+}
+
 async function watch(options) {
   await createEntryStub();
 
@@ -504,4 +523,24 @@ it('watch: converts again if source file is updated', async () => {
   } finally {
     testWatch.watching.close();
   }
+});
+
+it('bugfix: child compiler messes up internal state', async () => {
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: [path.join(__dirname, 'karla', 'Karla-Regular.ttf')],
+    subset: 'A' // Better performance.
+  });
+
+  await runWithChildCompiler({
+    plugins: [plugin],
+  });
+
+  assert.deepStrictEqual(plugin.lastResults(), [
+    'Karla-Regular.eot',
+    'Karla-Regular.ttf',
+    'Karla-Regular.svg',
+    'Karla-Regular.woff',
+    'Karla-Regular.woff2'
+  ]);
+  assertResultsExist(plugin);
 });
