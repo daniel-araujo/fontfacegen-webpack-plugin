@@ -16,11 +16,21 @@ const outputPath = path.join(__dirname, 'fontfacegen-webpack-plugin.test/build')
  * stop the wait.
  */
 async function until(predicate) {
-  return new Promise((resolve) => {
+  const MAX_TRIES = 1000;
+  let tries = 0;
+
+  return new Promise((resolve, reject) => {
     const interval = setInterval(() => {
       if (predicate()) {
         clearInterval(interval);
         resolve();
+      } else {
+        tries += 1;
+
+        if (tries > MAX_TRIES) {
+          clearInterval(interval);
+          reject();
+        }
       }
     }, 10);
   });
