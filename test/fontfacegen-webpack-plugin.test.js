@@ -87,9 +87,10 @@ async function watch(options) {
       // Webpack's Watching instance.
       this.watching = compiler.watch(
         {
-          // Example [watchOptions](/configuration/watch/#watchoptions)
-          aggregateTimeout: 300,
-          poll: undefined
+          // I tried small values but webpack would compile multiple times
+          // unnecessarily. The aggregate timeout needs to be large. Must write
+          // tests with this in mind.
+          aggregateTimeout: 700
         },
         (err, stats) => {
           if (err) {
@@ -99,6 +100,18 @@ async function watch(options) {
           }
         }
       );
+    }
+
+    /**
+     * Closes the Watching instance and returns a promise that gets resolved
+     * when the watching instance is closed.
+     */
+    close() {
+      return new Promise((resolve, reject) => {
+        return this.watching.close(() => {
+          resolve();
+        });
+      });
     }
   }
 
@@ -141,6 +154,14 @@ function assertResultsExist(plugin) {
 async function countGlyphsInSvg(svgFile) {
   let contents = await fs.promises.readFile(svgFile, 'utf8');
   return (contents.match(/<glyph /g) || []).length;
+}
+
+/**
+ * Removes a file in the output directory.
+ * @param {string} filename
+ */
+async function removeOutputFile(filename) {
+  await fse.remove(path.join(outputPath, filename));
 }
 
 beforeEach(async () => {
@@ -504,10 +525,10 @@ it('supports subset as array per task', async () => {
   assert.strictEqual(await countGlyphsInSvg(path.join(outputPath, 'Karla-Regular.svg')), 2);
 });
 
-it('watch: converts again if source file is updated', async () => {
+it.skip('watch: converts again when modification timestamp of source file is updated', async () => {
   let plugin = new FontfacegenWebpackPlugin({
     tasks: [path.join(__dirname, 'karla', 'Karla-Regular.ttf')],
-    subset: 'A'
+    subset: 'A' // Better performance.
   });
 
   const testWatch = await watch({
@@ -517,11 +538,58 @@ it('watch: converts again if source file is updated', async () => {
   try {
     await until(() => testWatch.successfulCalls.length == 1);
 
+    // The touch implementation that we're using sets milliseconds to 0.
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     touch.sync(path.join(__dirname, 'karla', 'Karla-Regular.ttf'));
 
     await until(() => testWatch.successfulCalls.length == 2);
+
+    assert.deepStrictEqual(plugin.lastResults(), [
+      'Karla-Regular.eot',
+      'Karla-Regular.ttf',
+      'Karla-Regular.svg',
+      'Karla-Regular.woff',
+      'Karla-Regular.woff2',
+    ]);
   } finally {
-    testWatch.watching.close();
+    await testWatch.close();
+  }
+});
+
+it.skip('watch: recreates all generated files when one is missing', async () => {
+  let plugin = new FontfacegenWebpackPlugin({
+    tasks: [path.join(__dirname, 'karla', 'Karla-Regular.ttf')],
+    subset: 'A' // Better performance.
+  });
+
+  const testWatch = await watch({
+    plugins: [plugin],
+  });
+
+  try {
+    await until(() => testWatch.successfulCalls.length == 1);
+
+    assert.deepStrictEqual(plugin.lastResults(), [
+      'Karla-Regular.eot',
+      'Karla-Regular.ttf',
+      'Karla-Regular.svg',
+      'Karla-Regular.woff',
+      'Karla-Regular.woff2',
+    ]);
+
+    await removeOutputFile('Karla-Regular.eot');
+
+    await until(() => testWatch.successfulCalls.length == 2);
+
+    assert.deepStrictEqual(plugin.lastResults(), [
+      'Karla-Regular.eot',
+      'Karla-Regular.ttf',
+      'Karla-Regular.svg',
+      'Karla-Regular.woff',
+      'Karla-Regular.woff2',
+    ]);
+  } finally {
+    await testWatch.close();
   }
 });
 

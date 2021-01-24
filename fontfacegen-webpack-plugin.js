@@ -79,6 +79,9 @@ class CompileResultCache {
   }
 }
 
+// Symbols for data we store in Webpack objects.
+const COMPILATION_STATE = Symbol('COMPILATION_STATE');
+
 // Symbols for private fields.
 const NAME = Symbol('NAME');
 const TASKS = Symbol('TASKS');
@@ -134,6 +137,9 @@ module.exports = class FontfacegenWebpackPlugin {
         };
       }));
 
+      // State initialization.
+      compilation[COMPILATION_STATE] = compilationTasks;
+
       // Discards previous results.
       this[LAST_RESULTS].length = 0;
 
@@ -161,6 +167,44 @@ module.exports = class FontfacegenWebpackPlugin {
           }
         }
       }
+    });
+
+    compiler.hooks.afterCompile.tapPromise(this[NAME], async (compilation) => {
+      let compilationTasks = compilation[COMPILATION_STATE];
+
+      if (compilationTasks === undefined) {
+        return
+      }
+
+      for (let ct of compilationTasks) {
+        for (let result of ct.results) {
+          try {
+            for (let file of result.files) {
+              let fullPath = path.join(compilation.outputOptions.path, file);
+
+              // Paths to the generated font files may be used in the code so we
+              // need to remove those from the dependencies list otherwise webpack
+              // watch will go in a loop when the fonts get compiled.
+              if (compilation.fileDependencies.has(fullPath)) {
+                compilation.fileDependencies.delete(fullPath);
+              }
+            }
+
+            // We need to manually register the source files as dependencies
+            // because they might not be referenced in the code. This is what
+            // makes the watch command work.
+            for (let sourceFile of ct.sourceFiles) {
+              compilation.fileDependencies.add(sourceFile);
+            }
+          } catch (e) {
+            console.error(e);
+            // Move on to the next result.
+          }
+        }
+      }
+
+      // State deinitialization.
+      delete compilation[COMPILATION_STATE];
     });
   }
 
